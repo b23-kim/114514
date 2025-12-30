@@ -118,7 +118,7 @@ const chatroom = {
     } else if (avatar && avatar.startsWith('http')) {
       avatarUrl = avatar;
     } else if (avatar && !isNaN(Number(avatar))) {
-      avatarUrl = `https://q1.qlogo.cn/g?b=qq&nk=  ${avatar}&s=100`;
+      avatarUrl = `https://q1.qlogo.cn/g?b=qq&nk=${avatar}&s=100`;
     } else {
       avatarUrl = this.assignAvatar(name);
     }
