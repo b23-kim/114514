@@ -363,7 +363,6 @@ getNestedValue: function(obj, path) {
           box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
           margin: 12px 0;
           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-          cursor: pointer;
         }
         .card-content {
           padding: 16px;
