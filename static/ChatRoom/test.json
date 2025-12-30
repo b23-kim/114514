@@ -59,15 +59,16 @@
         "forward": 1,
         "round": 1,
         "type": "normal",
-        "width": 300
+        "width": 300,
+        "text": ""
       },
       "desc": "[聊天记录]",
-      "extra": "{\"filename\":\"af328114-3fee-458f-82ce-8c9396a6883f\",\"tsum\":2}\n",
+      "extra": "{\"filename\":\"af328114-3fee-458f-82ce-8c9396a6883f\",\"tsum\":2}",
       "meta": {
         "detail": {
           "news": [
-            {"text": "‎: [图片]"},
-            {"text": "‎: [图片]"}
+            {"text": ": [图片]"},
+            {"text": ": [图片]"}
           ],
           "resid": "vhsoeevqAgHl1OT5Cw8IA9Vd/CeMIoYYqWAA8+GWtH26JnVMpnrEW5ATzpbjS7yY",
           "source": "群聊的聊天记录",
