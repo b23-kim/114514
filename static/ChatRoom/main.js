@@ -7,7 +7,6 @@ const chatroom = {
   avatarIndex: 0,
 
   init: function (config) {
-    // 保持原有初始化逻辑不变
     if (!config || typeof config !== 'object') {
       console.error('Chatroom configuration is missing or invalid.');
       return;
@@ -55,13 +54,17 @@ const chatroom = {
 
   generateChatContent: function (chatData, myAvatar, hideAvatar) {
     let content = '';
-    const sysProcessed = new Set();
+    const sysProcessed = new Set(); // 用于标记已经渲染过的 sys
 
     chatData.forEach((chatItem) => {
       if (chatItem.name && chatItem.name.toLowerCase() === 'sys') {
+        // 如果是 sys 类型的记录，先渲染通知
         content += this.generateSystemNotification(chatItem);
-        sysProcessed.add(chatItem.content);
+
+        // 将对应的 sys 记录标记为已经处理过，避免重复渲染
+        sysProcessed.add(chatItem.content); // 使用 content 或其他唯一标识作为标记
       } else if (!sysProcessed.has(chatItem.content)) {
+        // 非 sys 类型的记录，如果没有被标记为处理过，才渲染
         content += this.generateChatItem(chatItem, myAvatar, hideAvatar);
       }
     });
@@ -71,7 +74,7 @@ const chatroom = {
 
   generateChatItem: function (chatItem, myAvatar, hideAvatar) {
     let name = chatItem.name ? chatItem.name.trim() : '未知';
-    let element = chatItem.element ? chatItem.element.trim() : 'Text';
+    let element = chatItem.element ? chatItem.element.trim() : 'Text'; // 默认为Text类型
     let content = chatItem.content ? chatItem.content : '无内容';
     let avatar = chatItem.avatar || null;
 
@@ -95,19 +98,30 @@ const chatroom = {
       : `<img class="chatAvatar no-lightbox" src="${avatarUrl}" onerror="this.src='https://via.placeholder.com/100';">`;
 
     // 处理不同类型的内容
-    if (element === 'Text') {
-      content = this.parseContent(content);
-    } else if (element === 'ARK') {
+    let processedContent;
+    
+    // 新增：处理 ARK 卡片类型
+    if (element === 'ARK') {
       try {
         // 如果content是字符串，尝试解析为JSON
         if (typeof content === 'string') {
           content = JSON.parse(content);
         }
-        content = this.generateARKCard(content);
+        processedContent = this.generateARKCard(content);
       } catch (e) {
         console.error('Error parsing ARK card:', e);
-        content = '<div class="error">卡片解析失败</div>';
+        processedContent = `<div class="error">卡片解析失败: ${e.message}</div>`;
       }
+    } 
+    // 处理普通文本
+    else if (typeof content === 'string') {
+      processedContent = this.parseContent(content.trim());
+    } 
+    // 兜底：如果content既不是字符串也不是ARK，尝试转为字符串
+    else {
+      processedContent = typeof content === 'object' ? 
+        JSON.stringify(content) : 
+        String(content);
     }
 
     return `
@@ -115,7 +129,7 @@ const chatroom = {
         ${avatarHTML}
         <div class="chatContentWrapper">
           <b class="chatName">${chatName}</b>
-          <div class="chatContent">${content}</div>
+          <div class="chatContent">${processedContent}</div>
         </div>
       </div>
     `;
@@ -123,33 +137,38 @@ const chatroom = {
   
   // 新增：生成QQ ARK卡片
   generateARKCard: function(cardData) {
-    // 根据app和view字段确定卡片类型
-    const app = cardData.app || '';
-    const view = cardData.view || '';
-    
-    // 图文卡片 (news)
-    if (app.includes('tuwen') && view === 'news') {
-      return this.generateNewsCard(cardData);
-    }
-    // 聊天记录卡片
-    else if (app.includes('multimsg') && view === 'contact') {
-      return this.generateChatRecordCard(cardData);
-    }
-    // 小程序卡片
-    else if (app.includes('miniprogram') || app.includes('app')) {
-      return this.generateMiniProgramCard(cardData);
-    }
-    // 频道卡片
-    else if (app.includes('guild') || app.includes('channel')) {
-      return this.generateChannelCard(cardData);
-    }
-    // 社交关系卡片
-    else if (app.includes('contact') || app.includes('social')) {
-      return this.generateSocialCard(cardData);
-    }
-    // 默认卡片
-    else {
-      return this.generateDefaultCard(cardData);
+    try {
+      // 根据app和view字段确定卡片类型
+      const app = cardData.app || '';
+      const view = cardData.view || '';
+      
+      // 图文卡片 (news)
+      if (app.includes('tuwen') && view === 'news') {
+        return this.generateNewsCard(cardData);
+      }
+      // 聊天记录卡片
+      else if (app.includes('multimsg') && view === 'contact') {
+        return this.generateChatRecordCard(cardData);
+      }
+      // 小程序卡片
+      else if (app.includes('miniprogram') || app.includes('app')) {
+        return this.generateMiniProgramCard(cardData);
+      }
+      // 频道卡片
+      else if (app.includes('guild') || app.includes('channel')) {
+        return this.generateChannelCard(cardData);
+      }
+      // 社交关系卡片
+      else if (app.includes('contact') || app.includes('social')) {
+        return this.generateSocialCard(cardData);
+      }
+      // 默认卡片
+      else {
+        return this.generateDefaultCard(cardData);
+      }
+    } catch (e) {
+      console.error('Error generating ARK card:', e);
+      return `<div class="error">卡片生成失败: ${e.message}</div>`;
     }
   },
   
@@ -170,7 +189,7 @@ const chatroom = {
           <div class="article-card-title">${meta.title}</div>
         </div>
         <div class="article-card-content">
-          <div class="article-card-description">${meta.desc}</div>
+          <div class="article-card-description">${meta.desc || '无描述'}</div>
           <div class="article-card-icon">
             <img src="${meta.preview || 'https://i.imgur.com/5XvYJ3L.png'}" alt="预览图">
           </div>
@@ -209,7 +228,7 @@ const chatroom = {
     const chatLink = `https://blog.awaae001.top/Chatroom/?${params.toString()}`;
     
     return `
-      <div class="chat-card" onclick="openChatWindow('${chatLink}')">
+      <div class="chat-card" onclick="window.openChatWindow('${chatLink}')">
         <div class="chat-card-header">
           <h3>${meta.source || '群聊的聊天记录'}</h3>
         </div>
@@ -294,21 +313,20 @@ const chatroom = {
   
   // 新增：默认卡片
   generateDefaultCard: function(cardData) {
-    const meta = cardData.meta || {};
-    let content = '<div class="default-card-content">';
-    
-    // 尝试提取一些常见字段
-    if (meta.title) content += `<div class="card-title">${meta.title}</div>`;
-    if (meta.desc) content += `<div class="card-desc">${meta.desc}</div>`;
-    if (meta.url) content += `<div class="card-url">${meta.url}</div>`;
-    
+    let content = '<div class="default-card">';
+    content += `<div class="card-title">${cardData.meta?.title || '未知卡片'}</div>`;
+    content += `<div class="card-desc">${cardData.meta?.desc || '无描述'}</div>`;
     content += '</div>';
     return content;
   },
 
   generateSystemNotification: function (chatItem) {
-    let content = chatItem.content ? chatItem.content.trim() : '无内容';
-    content = this.parseContent(content);
+    let content = chatItem.content;
+    if (typeof content === 'string') {
+      content = this.parseContent(content.trim());
+    } else {
+      content = JSON.stringify(content);
+    }
 
     return `
       <div class="systemNotification">
