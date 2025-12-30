@@ -5,6 +5,10 @@ window.openChatWindow = function (url) {
 const chatroom = {
   userAvatarMap: new Map(),
   avatarIndex: 0,
+  templateCache: new Map(),
+  styleCache: new Set(),
+  customClickHandlers: new Map(), // 存储自定义点击处理器
+  templatesUrl: 'https://cdn.jsdmirror.com/gh/b23-kim/ChatRoom.js@main/ARKTemplates/' // 默认模板URL
 
   init: function (config) {
     if (!config || typeof config !== 'object') {
@@ -15,6 +19,8 @@ const chatroom = {
     const containerId = config.chatroomName;
     const jsonFilePath = config.jsonFilePath;
     const myAvatar = config.MyAvatar;
+    // 新增：获取模板URL，有则用，没有则用默认
+    this.templatesUrl = config.templatesUrl || this.templatesUrl;
 
     if (!containerId || !jsonFilePath || !myAvatar) {
       console.error('Chatroom name (containerId), JSON file path, and MyAvatar must be provided.');
@@ -27,6 +33,9 @@ const chatroom = {
       return;
     }
 
+    // 设置自定义点击事件委托
+    this.setupCustomClickDelegation(container);
+
     this.loadChatData(jsonFilePath)
       .then((chatData) => {
         const chatContent = this.generateChatContent(chatData, myAvatar, config.hideAvatar);
@@ -35,6 +44,26 @@ const chatroom = {
       .catch((err) => {
         console.error('Error loading chat data:', err);
       });
+  },
+
+  // 新增：设置自定义点击事件委托
+  setupCustomClickDelegation: function(container) {
+    container.addEventListener('click', (e) => {
+      const target = e.target.closest('[data-click-handler]');
+      if (target) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const handlerId = target.dataset.clickHandler;
+        const params = target.dataset.clickParams ? JSON.parse(target.dataset.clickParams) : {};
+        
+        if (this.customClickHandlers.has(handlerId)) {
+          this.customClickHandlers.get(handlerId).call(this, e, params, target);
+        } else {
+          console.warn(`Custom click handler "${handlerId}" not found`);
+        }
+      }
+    }, true);
   },
 
   loadChatData: function (filePath) {
@@ -54,17 +83,13 @@ const chatroom = {
 
   generateChatContent: function (chatData, myAvatar, hideAvatar) {
     let content = '';
-    const sysProcessed = new Set(); // 用于标记已经渲染过的 sys
+    const sysProcessed = new Set();
 
     chatData.forEach((chatItem) => {
       if (chatItem.name && chatItem.name.toLowerCase() === 'sys') {
-        // 如果是 sys 类型的记录，先渲染通知
         content += this.generateSystemNotification(chatItem);
-
-        // 将对应的 sys 记录标记为已经处理过，避免重复渲染
-        sysProcessed.add(chatItem.content); // 使用 content 或其他唯一标识作为标记
+        sysProcessed.add(chatItem.content);
       } else if (!sysProcessed.has(chatItem.content)) {
-        // 非 sys 类型的记录，如果没有被标记为处理过，才渲染
         content += this.generateChatItem(chatItem, myAvatar, hideAvatar);
       }
     });
@@ -74,7 +99,7 @@ const chatroom = {
 
   generateChatItem: function (chatItem, myAvatar, hideAvatar) {
     let name = chatItem.name ? chatItem.name.trim() : '未知';
-    let element = chatItem.element ? chatItem.element.trim() : 'Text'; // 默认为Text类型
+    let element = chatItem.element ? chatItem.element.trim() : 'Text';
     let content = chatItem.content ? chatItem.content : '无内容';
     let avatar = chatItem.avatar || null;
 
@@ -112,12 +137,13 @@ const chatroom = {
         console.error('Error parsing ARK card:', e);
         processedContent = `<div class="error">卡片解析失败: ${e.message}</div>`;
       }
-      return ` //提前返回，差异化处理
+      //提前返回，差异化处理
+      return `
       <div class="chatItem ${chatClass}">
         ${avatarHTML}
         <div class="chatContentWrapper">
           <b class="chatName">${chatName}</b>
-          <div >${processedContent}</div>
+          <div>${processedContent}</div>
         </div>
       </div>
     `;
@@ -144,189 +170,170 @@ const chatroom = {
     `;
   },
   
-  // 新增：生成QQ ARK卡片
-  generateARKCard: function(cardData) {
+  // 重构：动态加载卡片模板
+  generateARKCard: async function(cardData) {
     try {
-      // 根据app和view字段确定卡片类型
-      const app = cardData.app || '';
-      const view = cardData.view || '';
+      // 获取卡片类型和视图
+      const app = (cardData.app || '').toLowerCase().replace('com.tencent.', '');
+      const view = cardData.view || 'default';
       
-      // 图文卡片 (news)
-      if (app.includes('tuwen') && view === 'news') {
-        return this.generateNewsCard(cardData);
-      }
-      // 聊天记录卡片
-      else if (app.includes('multimsg') && view === 'contact') {
-        return this.generateChatRecordCard(cardData);
-      }
-      // 小程序卡片
-      else if (app.includes('miniprogram') || app.includes('app')) {
-        return this.generateMiniProgramCard(cardData);
-      }
-      // 频道卡片
-      else if (app.includes('guild') || app.includes('channel')) {
-        return this.generateChannelCard(cardData);
-      }
-      // 社交关系卡片
-      else if (app.includes('contact') || app.includes('social')) {
-        return this.generateSocialCard(cardData);
-      }
-      // 默认卡片
-      else {
-        return this.generateDefaultCard(cardData);
-      }
+      // 生成模板路径 - 使用配置的templatesUrl
+      const templatePath = `${this.templatesUrl}${app}/${view}.html`;
+      
+      // 获取模板
+      const template = await this.getTemplate(templatePath);
+      
+      // 填充模板数据
+      return this.renderTemplate(template, cardData);
     } catch (e) {
       console.error('Error generating ARK card:', e);
-      return `<div class="error">卡片生成失败: ${e.message}</div>`;
+      return `<div class="error">卡片生成失败: ${e.message || e.toString()}</div>`;
     }
   },
   
-  // 新增：生成图文卡片 (news)
-  generateNewsCard: function(cardData) {
-    const meta = cardData.meta?.news || {};
-    const config = cardData.config || {};
-    
-    return `
-      <div class="article-card" onclick="window.open('${meta.jumpUrl || '#'}', '_blank')">
-        <div class="article-card-header">
-          <div class="article-card-app">
-            <div class="article-card-app-icon">
-              <img src="${meta.tagIcon || 'https://i.imgur.com/6RcV7kO.png'}" alt="应用图标">
-            </div>
-            <div class="article-card-appname">${meta.tag || '腾讯内容'}</div>
-          </div>
-          <div class="article-card-title">${meta.title}</div>
-        </div>
-        <div class="article-card-content">
-          <div class="article-card-description">${meta.desc || '无描述'}</div>
-          <div class="article-card-icon">
-            <img src="${meta.preview || 'https://i.imgur.com/5XvYJ3L.png'}" alt="预览图">
-          </div>
-        </div>
-        <div class="article-card-footer">
-          <div class="article-card-footer-icon">
-            <img src="${meta.tagIcon || 'https://i.imgur.com/6RcV7kO.png'}" alt="来源图标">
-          </div>
-          <span class="article-card-source">${meta.tag || '来源'}</span>
-        </div>
-      </div>
-    `;
-  },
-  
-  // 新增：生成聊天记录卡片
-  generateChatRecordCard: function(cardData) {
-    const meta = cardData.meta?.detail || {};
-    const config = cardData.config || {};
-    
-    // 生成预览消息
-    let previewMessages = '';
-    if (meta.news && Array.isArray(meta.news)) {
-      meta.news.slice(0, 2).forEach(item => {
-        previewMessages += `<div class="chat-message">${item.text}</div>`;
-      });
-    } else {
-      previewMessages = `<div class="chat-message">: [图片]</div><div class="chat-message">: [图片]</div>`;
+  // 新增：获取并缓存模板
+  getTemplate: async function(templatePath) {
+    // 检查缓存
+    if (this.templateCache.has(templatePath)) {
+      return this.templateCache.get(templatePath);
     }
     
-    // 构建JSON参数
-    const params = new URLSearchParams({
-      jsonFilePath: config.jsonPath || '',
-      title: meta.source || '群聊的聊天记录'
+    try {
+      // 加载模板
+      const response = await fetch(templatePath);
+      if (!response.ok) {
+        throw new Error(`Failed to load template from ${templatePath}`);
+      }
+      
+      const templateHTML = await response.text();
+      
+      // 缓存模板
+      this.templateCache.set(templatePath, templateHTML);
+      
+      // 自动加载关联样式
+      this.loadTemplateStyles(templateHTML);
+      
+      return templateHTML;
+    } catch (error) {
+      console.error(`Error loading template ${templatePath}:`, error);
+      // 失败时使用默认模板
+      return this.getDefaultTemplate();
+    }
+  },
+  
+  // 新增：加载模板中的样式
+  loadTemplateStyles: function(templateHTML) {
+    // 创建临时DOM元素解析模板
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = templateHTML;
+    
+    // 查找所有样式标签
+    const styleTags = tempDiv.querySelectorAll('style, link[rel="stylesheet"]');
+    
+    styleTags.forEach(tag => {
+      const key = tag.outerHTML;
+      
+      // 检查样式是否已加载
+      if (this.styleCache.has(key)) return;
+      
+      // 注入样式
+      if (tag.tagName === 'STYLE') {
+        const style = document.createElement('style');
+        style.innerHTML = tag.innerHTML;
+        document.head.appendChild(style);
+      } else if (tag.tagName === 'LINK') {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = tag.href;
+        document.head.appendChild(link);
+      }
+      
+      // 缓存已加载样式
+      this.styleCache.add(key);
+    });
+  },
+  
+  // 重构：渲染模板 - 支持 overwrite 字段
+  renderTemplate: function(template, data) {
+    // 检查 overwrite 配置
+    const overwrite = data.overwrite || {};
+    const handlerId = overwrite.clickHandlerId || this.generateHandlerId();
+    
+    // 存储自定义点击处理函数
+    if (overwrite.clickHandler) {
+      this.customClickHandlers.set(handlerId, overwrite.clickHandler);
+    }
+    
+    // 将 handlerId 和其他 overwrite 数据注入到模板上下文中
+    const context = {
+      ...data,
+      __clickHandlerId: handlerId,
+      __overwrite: overwrite
+    };
+    
+    // 简单的模板变量替换 {{variable}}
+    let rendered = template.replace(/{{([^}]+)}}/g, (match, key) => {
+      // 处理特殊变量
+      if (key === '__clickAttrs') {
+        return overwrite.clickHandler ? 
+          `data-click-handler="${handlerId}" data-click-params='${JSON.stringify(overwrite.clickParams || {})}'` : 
+          '';
+      }
+      
+      // 支持嵌套属性，如 meta.news.title
+      return this.getNestedValue(context, key.trim()) || '';
     });
     
-    const chatLink = `https://blog.awaae001.top/Chatroom/?${params.toString()}`;
-    
-    return `
-      <div class="chat-card" onclick="window.openChatWindow('${chatLink}')">
-        <div class="chat-card-header">
-          <h3>${meta.source || '群聊的聊天记录'}</h3>
-        </div>
-        <div class="chat-card-content">
-          ${previewMessages}
-        </div>
-        <div class="chat-card-footer">
-          <span>聊天记录</span>
-        </div>
-      </div>
-    `;
+    return rendered;
   },
   
-  // 新增：生成小程序卡片
-  generateMiniProgramCard: function(cardData) {
-    const meta = cardData.meta?.miniProgram || {};
-    const config = cardData.config || {};
-    
-    return `
-      <div class="miniprogram-card" onclick="window.open('${meta.jumpUrl || '#'}', '_blank')">
-        <div class="miniprogram-card-header">
-          <div class="miniprogram-card-app">
-            <div class="miniprogram-card-app-icon">
-              <img src="${meta.appIcon || 'https://i.imgur.com/6RcV7kO.png'}" alt="应用图标">
-            </div>
-            <div class="miniprogram-card-appname">${meta.appName || '小程序'}</div>
-          </div>
-          <div class="miniprogram-card-title">${meta.title || '小程序标题'}</div>
-        </div>
-        <div class="miniprogram-card-content">
-          <div class="miniprogram-card-image-container">
-            <img class="miniprogram-card-image" src="${meta.preview || 'https://i.imgur.com/5XvYJ3L.png'}" alt="小程序截图">
-          </div>
-        </div>
-        <div class="miniprogram-card-footer">
-          <div class="miniprogram-card-footer-icon">
-            <img src="${meta.miniprogramIcon || 'https://i.imgur.com/6RcV7kO.png'}" alt="小程序图标">
-          </div>
-          <span class="miniprogram-card-source">${meta.source || 'QQ小程序'}</span>
-        </div>
-      </div>
-    `;
+  // 新增：生成唯一处理器ID
+  generateHandlerId() {
+    return `handler_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
   },
   
-  // 新增：生成频道卡片
-  generateChannelCard: function(cardData) {
-    const meta = cardData.meta?.channel || {};
-    
-    return `
-      <div class="channel-card" onclick="window.open('${meta.jumpUrl || '#'}', '_blank')">
-        <div class="channel-card-content">
-          <div class="channel-card-text">${meta.content || '频道内容'}</div>
-        </div>
-        <div class="channel-card-footer">
-          <div class="channel-card-footer-icon">
-            <img src="${meta.icon || 'https://i.imgur.com/6RcV7kO.png'}" alt="频道图标">
-          </div>
-          <span class="channel-card-source">${meta.name || '腾讯频道'}</span>
-        </div>
-      </div>
-    `;
+  // 新增：获取嵌套对象的值
+  getNestedValue: function(obj, path) {
+    return path.split('.').reduce((current, key) => {
+      return current && current[key] !== undefined ? current[key] : undefined;
+    }, obj);
   },
   
-  // 新增：生成社交关系卡片
-  generateSocialCard: function(cardData) {
-    const meta = cardData.meta?.contact || {};
-    
+  // 新增：默认模板
+  getDefaultTemplate() {
     return `
-      <div class="social-card" onclick="window.open('${meta.jumpUrl || '#'}', '_blank')">
-        <div class="social-card-icon">
-          <img src="${meta.avatar || 'https://i.imgur.com/0XZcJ4P.png'}" alt="社交图标">
+      <div class="ark-card default-card" {{__clickAttrs}} onclick="window.open('{{meta.jumpUrl}}', '_blank')">
+        <div class="card-content">
+          <h3>{{meta.title}}</h3>
+          <p>{{meta.desc}}</p>
         </div>
-        <div class="social-card-content">
-          <div class="social-card-name">${meta.name || '联系人'}</div>
+        <div class="card-footer">
+          <span>{{meta.source || '未知来源'}}</span>
         </div>
       </div>
-      <div class="social-card-footer">
-        <span>${meta.relation || '推荐好友'}</span>
-      </div>
+      <style>
+        .ark-card {
+          border: 1px solid #e0e0e0;
+          border-radius: 12px;
+          overflow: hidden;
+          background-color: #FFFFFF;
+          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+          margin: 12px 0;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+          cursor: pointer;
+        }
+        .card-content {
+          padding: 16px;
+        }
+        .card-footer {
+          padding: 8px 16px;
+          border-top: 1px solid #f0f0f0;
+          background-color: #fafafa;
+          font-size: 13px;
+          color: #999;
+        }
+      </style>
     `;
-  },
-  
-  // 新增：默认卡片
-  generateDefaultCard: function(cardData) {
-    let content = '<div class="default-card">';
-    content += `<div class="card-title">${cardData.meta?.title || '未知卡片'}</div>`;
-    content += `<div class="card-desc">${cardData.meta?.desc || '无描述'}</div>`;
-    content += '</div>';
-    return content;
   },
 
   generateSystemNotification: function (chatItem) {
