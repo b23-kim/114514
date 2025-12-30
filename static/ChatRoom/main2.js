@@ -112,6 +112,15 @@ const chatroom = {
         console.error('Error parsing ARK card:', e);
         processedContent = `<div class="error">卡片解析失败: ${e.message}</div>`;
       }
+      return ` //提前返回，差异化处理
+      <div class="chatItem ${chatClass}">
+        ${avatarHTML}
+        <div class="chatContentWrapper">
+          <b class="chatName">${chatName}</b>
+          <div >${processedContent}</div>
+        </div>
+      </div>
+    `;
     } 
     // 处理普通文本
     else if (typeof content === 'string') {
