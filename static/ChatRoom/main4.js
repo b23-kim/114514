@@ -8,7 +8,7 @@ const chatroom = {
   templateCache: new Map(),
   styleCache: new Set(),
   customClickHandlers: new Map(), // 存储自定义点击处理器
-  templatesUrl: 'https://cdn.jsdmirror.com/gh/b23-kim/ChatRoom.js@main/ARKTemplates/' // 默认模板URL
+  templatesUrl: 'https://cdn.jsdmirror.com/gh/b23-kim/ChatRoom.js@main/ARKTemplates/', // 默认模板URL
 
   init: function (config) {
     if (!config || typeof config !== 'object') {
