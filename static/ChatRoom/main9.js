@@ -348,7 +348,7 @@ getNestedValue: function(obj, path) {
   // 新增：默认模板
   getDefaultTemplate() {
     return `
-      <div class="ark-card default-card" {{__clickAttrs}} onclick="window.open('{{meta.jumpUrl}}', '_blank')">
+      <div class="ark-card default-card">
         <div class="card-content">
           <h3>卡片加载异常</h3>
           <p>ARK内容显示失败</p>
