@@ -1,0 +1,84 @@
+[
+  {
+    "name": "花露水|liushen.top",
+    "element": "Text",
+    "content": "这是一个普通文本消息，与原有功能完全兼容",
+    "avatar": "3162475700"
+  },
+  {
+    "name": "me",
+    "element": "ARK",
+    "content": {
+      "app": "com.tencent.tuwen.lua",
+      "desc": "",
+      "view": "news",
+      "bizsrc": "pd.aisearch",
+      "ver": "0.0.0.1",
+      "prompt": "[分享频道问问]",
+      "appID": "",
+      "sourceName": "",
+      "actionData": "",
+      "actionData_A": "",
+      "sourceUrl": "",
+      "meta": {
+        "news": {
+          "title": "频道问问：嘿壳模块作者人机透了是什么梗",
+          "desc": "根据搜索到的帖子内容，关于"嘿壳模块作者人机透了"这个梗的具体讨论未在公开帖子中直接出现，但结合相关主题（如游戏模组、网络流行语和黑客元素），我分析了频道中的信息。以下是基于帖子内容的总结和解释：",
+          "preview": "https://downv6.qq.com/innovate/guild/guild_logo.png",
+          "tag": "腾讯频道",
+          "tagIcon": "http://downv6.qq.com/innovate/guild/tail_guild_logo.png",
+          "jumpUrl": "https://pd.qq.com/ais/share?c=iU5jNl"
+        }
+      },
+      "config": {
+        "autosize": 0,
+        "collect": 1,
+        "ctime": 1767109146,
+        "forward": 1,
+        "height": 318,
+        "reply": 1,
+        "round": 1,
+        "token": "025cd874e8cebab7974df06020024dc6",
+        "type": "normal",
+        "width": 526
+      },
+      "text": "",
+      "extraApps": [],
+      "sourceAd": "",
+      "extra": ""
+    },
+    "avatar": "3162475700"
+  },
+  {
+    "name": "系统",
+    "element": "ARK",
+    "content": {
+      "app": "com.tencent.multimsg",
+      "config": {
+        "autosize": 1,
+        "forward": 1,
+        "round": 1,
+        "type": "normal",
+        "width": 300
+      },
+      "desc": "[聊天记录]",
+      "extra": "{\"filename\":\"af328114-3fee-458f-82ce-8c9396a6883f\",\"tsum\":2}\n",
+      "meta": {
+        "detail": {
+          "news": [
+            {"text": "‎: [图片]"},
+            {"text": "‎: [图片]"}
+          ],
+          "resid": "vhsoeevqAgHl1OT5Cw8IA9Vd/CeMIoYYqWAA8+GWtH26JnVMpnrEW5ATzpbjS7yY",
+          "source": "群聊的聊天记录",
+          "summary": "查看2条转发消息",
+          "uniseq": "af328114-3fee-458f-82ce-8c9396a6883f"
+        }
+      },
+      "prompt": "[聊天记录]",
+      "ver": "0.0.0.5",
+      "view": "contact"
+    },
+    "avatar": null
+  }
+]
