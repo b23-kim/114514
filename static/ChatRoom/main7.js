@@ -8,7 +8,7 @@ const chatroom = {
   templateCache: new Map(),
   styleCache: new Set(),
   customClickHandlers: new Map(), // 存储自定义点击处理器
-  templatesUrl: 'https://cdn.jsdmirror.com/gh/b23-kim/ChatRoom.js@main/ARKTemplates/', // 默认模板URL
+  templatesUrl: 'https://cdn.jsdmirror.com/gh/b23-kim/ChatRoom.js@main/ARKTemplates/  ', // 默认模板URL
 
   init: function (config) {
     if (!config || typeof config !== 'object') {
@@ -38,8 +38,10 @@ const chatroom = {
 
     this.loadChatData(jsonFilePath)
       .then((chatData) => {
-        const chatContent = this.generateChatContent(chatData, myAvatar, config.hideAvatar);
-        container.innerHTML = this.generateChatBoxHTML(chatContent, config.title || '群聊的聊天记录');
+        // 修改这里：使用异步生成内容
+        this.generateChatContent(chatData, myAvatar, config.hideAvatar).then(chatContent => {
+          container.innerHTML = this.generateChatBoxHTML(chatContent, config.title || '群聊的聊天记录');
+        });
       })
       .catch((err) => {
         console.error('Error loading chat data:', err);
@@ -81,23 +83,26 @@ const chatroom = {
     return `<div class="chatContainer">${titleHtml}<div class="chatBox">${content}</div></div>`;
   },
 
-  generateChatContent: function (chatData, myAvatar, hideAvatar) {
+  // 修改为异步函数
+  generateChatContent: async function (chatData, myAvatar, hideAvatar) {
     let content = '';
     const sysProcessed = new Set();
 
-    chatData.forEach((chatItem) => {
+    for (const chatItem of chatData) {
       if (chatItem.name && chatItem.name.toLowerCase() === 'sys') {
         content += this.generateSystemNotification(chatItem);
         sysProcessed.add(chatItem.content);
       } else if (!sysProcessed.has(chatItem.content)) {
-        content += this.generateChatItem(chatItem, myAvatar, hideAvatar);
+        // 等待每个聊天项的处理完成
+        content += await this.generateChatItem(chatItem, myAvatar, hideAvatar);
       }
-    });
+    }
 
     return content;
   },
 
-  generateChatItem: function (chatItem, myAvatar, hideAvatar) {
+  // 修改为异步函数
+  generateChatItem: async function (chatItem, myAvatar, hideAvatar) {
     let name = chatItem.name ? chatItem.name.trim() : '未知';
     let element = chatItem.element ? chatItem.element.trim() : 'Text';
     let content = chatItem.content ? chatItem.content : '无内容';
@@ -113,14 +118,14 @@ const chatroom = {
     } else if (avatar && avatar.startsWith('http')) {
       avatarUrl = avatar;
     } else if (avatar && !isNaN(Number(avatar))) {
-      avatarUrl = `https://q1.qlogo.cn/g?b=qq&nk=${avatar}&s=100`;
+      avatarUrl = `https://q1.qlogo.cn/g?b=qq&nk=  ${avatar}&s=100`;
     } else {
       avatarUrl = this.assignAvatar(name);
     }
 
     const avatarHTML = hideAvatar
       ? ''
-      : `<img class="chatAvatar no-lightbox" src="${avatarUrl}" onerror="this.src='https://via.placeholder.com/100';">`;
+      : `<img class="chatAvatar no-lightbox" src="${avatarUrl}" onerror="this.src='https://via.placeholder.com/100  ';">`;
 
     // 处理不同类型的内容
     let processedContent;
@@ -132,7 +137,8 @@ const chatroom = {
         if (typeof content === 'string') {
           content = JSON.parse(content);
         }
-        processedContent = this.generateARKCard(content);
+        // 等待异步操作完成
+        processedContent = await this.generateARKCard(content);
       } catch (e) {
         console.error('Error parsing ARK card:', e);
         processedContent = `<div class="error">卡片解析失败: ${e.message}</div>`;
@@ -406,7 +412,7 @@ getNestedValue: function(obj, path) {
     content = content.replace(chatPattern, (match, title, jsonFilePath) => {
       const encodedTitle = encodeURIComponent(title);
       const encodedJsonFilePath = encodeURIComponent(jsonFilePath);
-      const chatLink = `https://blog.awaae001.top/Chatroom/?jsonFilePath=${encodedJsonFilePath}&title=${encodedTitle}`;
+      const chatLink = `https://blog.awaae001.top/Chatroom/?jsonFilePath=  ${encodedJsonFilePath}&title=${encodedTitle}`;
       return `
         <div class="chatQuoteCard">
           <div class="chatQuoteTetle">
@@ -443,12 +449,12 @@ getNestedValue: function(obj, path) {
 
   assignAvatar: function (name) {
     const avatars = [
-      'https://i.p-i.vip/30/20240920-66ed9a608c2cf.png',
-      'https://i.p-i.vip/30/20240920-66ed9b0655cba.png',
-      'https://i.p-i.vip/30/20240920-66ed9b18a56ee.png',
-      'https://i.p-i.vip/30/20240920-66ed9b2c199bf.png',
-      'https://i.p-i.vip/30/20240920-66ed9b3350ed1.png',
-      'https://i.p-i.vip/30/20240920-66ed9b5181630.png',
+      'https://i.p-i.vip/30/20240920-66ed9a608c2cf.png  ',
+      'https://i.p-i.vip/30/20240920-66ed9b0655cba.png  ',
+      'https://i.p-i.vip/30/20240920-66ed9b18a56ee.png  ',
+      'https://i.p-i.vip/30/20240920-66ed9b2c199bf.png  ',
+      'https://i.p-i.vip/30/20240920-66ed9b3350ed1.png  ',
+      'https://i.p-i.vip/30/20240920-66ed9b5181630.png  ',
     ];
 
     if (!this.userAvatarMap.has(name)) {
