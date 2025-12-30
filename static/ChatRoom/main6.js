@@ -253,16 +253,22 @@ const chatroom = {
     });
   },
   
-  // 重构：渲染模板 - 支持 overwrite 字段
-  renderTemplate: function(template, data) {
+// 重构：渲染模板 - 支持 overwrite 字段
+renderTemplate: function(template, data) {
+  try {
     // 检查 overwrite 配置
     const overwrite = data.overwrite || {};
     const handlerId = overwrite.clickHandlerId || this.generateHandlerId();
     
     // 存储自定义点击处理函数
     if (overwrite.clickHandler) {
-      this.customClickHandlers.set(handlerId, overwrite.clickHandler);
+      this.customClickHandlers.set(handlerId, 
+        new Function('e', 'params', 'element', `with(this) { ${overwrite.clickHandler} }`).bind(this)
+      );
     }
+    
+    // 调试：打印完整数据结构
+    console.log('Template data structure:', data);
     
     // 将 handlerId 和其他 overwrite 数据注入到模板上下文中
     const context = {
@@ -271,33 +277,67 @@ const chatroom = {
       __overwrite: overwrite
     };
     
-    // 简单的模板变量替换 {{variable}}
-    let rendered = template.replace(/{{([^}]+)}}/g, (match, key) => {
+    // 改进的模板变量替换
+    let rendered = template.replace(/{{\s*([^}]+?)\s*}}/g, (match, key) => {
+      key = key.trim();
+      
       // 处理特殊变量
       if (key === '__clickAttrs') {
-        return overwrite.clickHandler ? 
-          `data-click-handler="${handlerId}" data-click-params='${JSON.stringify(overwrite.clickParams || {})}'` : 
-          '';
+        if (overwrite.clickHandler) {
+          return `data-click-handler="${handlerId}" data-click-params='${JSON.stringify(overwrite.clickParams || {})}'`;
+        }
+        return '';
       }
       
       // 支持嵌套属性，如 meta.news.title
-      return this.getNestedValue(context, key.trim()) || '';
+      const value = this.getNestedValue(context, key);
+      
+      // 调试：打印变量解析结果
+      if (value === undefined) {
+        console.warn(`Template variable not found: ${key}`, context);
+      }
+      
+      // 确保返回字符串
+      return value !== undefined && value !== null ? String(value) : '';
     });
     
+    // 再次替换未解析的变量（双重保险）
+    rendered = rendered.replace(/{{[^}]+?}}/g, '');
+    
+    // 调试：打印渲染后的HTML
+    console.log('Rendered template:', rendered.substring(0, 200) + '...');
+    
     return rendered;
-  },
+  } catch (e) {
+    console.error('Error rendering template:', e);
+    return `<div class="error">模板渲染失败: ${e.message}</div>`;
+  }
+},
   
   // 新增：生成唯一处理器ID
   generateHandlerId() {
     return `handler_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
   },
-  
-  // 新增：获取嵌套对象的值
-  getNestedValue: function(obj, path) {
+    
+// 改进：获取嵌套对象的值
+getNestedValue: function(obj, path) {
+  try {
+    // 处理数组索引和特殊字符
     return path.split('.').reduce((current, key) => {
+      // 处理带引号的键，如 meta['news.title']
+      if (key.includes('[')) {
+        const match = key.match(/(\w+)\[['"]?([^'"]+)['"]?\]/);
+        if (match) {
+          return current && current[match[1]] ? current[match[1]][match[2]] : undefined;
+        }
+      }
       return current && current[key] !== undefined ? current[key] : undefined;
     }, obj);
-  },
+  } catch (e) {
+    console.error(`Error getting nested value for path '${path}':`, e);
+    return undefined;
+  }
+},
   
   // 新增：默认模板
   getDefaultTemplate() {
