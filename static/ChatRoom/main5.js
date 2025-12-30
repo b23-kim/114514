@@ -174,7 +174,7 @@ const chatroom = {
   generateARKCard: async function(cardData) {
     try {
       // 获取卡片类型和视图
-      const app = (cardData.app || '').toLowerCase().replace('com.tencent.', '');
+      const app = (cardData.app || '').toLowerCase();
       const view = cardData.view || 'default';
       
       // 生成模板路径 - 使用配置的templatesUrl
