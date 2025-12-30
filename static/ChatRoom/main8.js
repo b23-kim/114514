@@ -350,11 +350,8 @@ getNestedValue: function(obj, path) {
     return `
       <div class="ark-card default-card" {{__clickAttrs}} onclick="window.open('{{meta.jumpUrl}}', '_blank')">
         <div class="card-content">
-          <h3>{{meta.title}}</h3>
-          <p>{{meta.desc}}</p>
-        </div>
-        <div class="card-footer">
-          <span>{{meta.source || '未知来源'}}</span>
+          <h3>卡片加载异常</h3>
+          <p>ARK内容显示失败</p>
         </div>
       </div>
       <style>
