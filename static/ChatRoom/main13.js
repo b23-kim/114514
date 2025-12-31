@@ -5,17 +5,10 @@ if (typeof window.chatroom === 'undefined') {
     avatarIndex: 0,
     templateCache: new Map(),
     styleCache: new Set(),
-    customClickHandlers: new Map(),
-    templatesUrl: 'https://cdn.jsdmirror.com/gh/b23-kim/ChatRoom.js@main/ARKTemplates/',
+    customClickHandlers: new Map(), // 存储自定义点击处理器
+    templatesUrl: 'https://cdn.jsdmirror.com/gh/b23-kim/ChatRoom.js@main/ARKTemplates/    ', // 默认模板URL
 
     init: function (config) {
-      // 检查是否已初始化
-      const container = document.getElementById(config.chatroomName);
-      if (container && container.innerHTML.trim() !== '') {
-        console.log(`Chatroom with id "${config.chatroomName}" already initialized`);
-        return;
-      }
-
       if (!config || typeof config !== 'object') {
         console.error('Chatroom configuration is missing or invalid.');
         return;
@@ -24,6 +17,7 @@ if (typeof window.chatroom === 'undefined') {
       const containerId = config.chatroomName;
       const jsonFilePath = config.jsonFilePath;
       const myAvatar = config.MyAvatar;
+      // 新增：获取模板URL，有则用，没有则用默认
       this.templatesUrl = config.templatesUrl || this.templatesUrl;
 
       if (!containerId || !jsonFilePath || !myAvatar) {
@@ -37,10 +31,21 @@ if (typeof window.chatroom === 'undefined') {
         return;
       }
 
+      // 检查是否已初始化
+      if (container.dataset.chatroomInitialized === 'true') {
+        console.log(`Chatroom with id "${containerId}" already initialized`);
+        return;
+      }
+
+      // 标记为已初始化
+      container.dataset.chatroomInitialized = 'true';
+
+      // 设置自定义点击事件委托
       this.setupCustomClickDelegation(container);
 
       this.loadChatData(jsonFilePath)
         .then((chatData) => {
+          // 修改这里：使用异步生成内容
           this.generateChatContent(chatData, myAvatar, config.hideAvatar).then(chatContent => {
             if (document.getElementById(containerId)) {
               container.innerHTML = this.generateChatBoxHTML(chatContent, config.title || '群聊的聊天记录');
@@ -48,16 +53,21 @@ if (typeof window.chatroom === 'undefined') {
           });
         })
         .catch((err) => {
-          console.error('Error loading chat ', err);
+          console.error('Error loading chat data:', err);
+          // 移除标记，允许重试
+          container.dataset.chatroomInitialized = 'false';
         });
     },
 
+    // 新增：设置自定义点击事件委托
     setupCustomClickDelegation: function(container) {
-      // 移除已存在的事件监听器
-      const clone = container.cloneNode(true);
-      container.parentNode.replaceChild(clone, container);
+      // 移除重复事件监听
+      const existingListener = container.__chatroomClickListener;
+      if (existingListener) {
+        container.removeEventListener('click', existingListener, true);
+      }
       
-      clone.addEventListener('click', (e) => {
+      const clickHandler = (e) => {
         const target = e.target.closest('[data-click-handler]');
         if (target) {
           e.preventDefault();
@@ -72,7 +82,10 @@ if (typeof window.chatroom === 'undefined') {
             console.warn(`Custom click handler "${handlerId}" not found`);
           }
         }
-      }, true);
+      };
+      
+      container.addEventListener('click', clickHandler, true);
+      container.__chatroomClickListener = clickHandler; // 保存引用以便移除
     },
 
     loadChatData: function (filePath) {
@@ -90,6 +103,7 @@ if (typeof window.chatroom === 'undefined') {
       return `<div class="chatContainer">${titleHtml}<div class="chatBox">${content}</div></div>`;
     },
 
+    // 修改为异步函数
     generateChatContent: async function (chatData, myAvatar, hideAvatar) {
       let content = '';
       const sysProcessed = new Set();
@@ -99,6 +113,7 @@ if (typeof window.chatroom === 'undefined') {
           content += this.generateSystemNotification(chatItem);
           sysProcessed.add(chatItem.content);
         } else if (!sysProcessed.has(chatItem.content)) {
+          // 等待每个聊天项的处理完成
           content += await this.generateChatItem(chatItem, myAvatar, hideAvatar);
         }
       }
@@ -106,6 +121,7 @@ if (typeof window.chatroom === 'undefined') {
       return content;
     },
 
+    // 修改为异步函数
     generateChatItem: async function (chatItem, myAvatar, hideAvatar) {
       let name = chatItem.name ? chatItem.name.trim() : '未知';
       let element = chatItem.element ? chatItem.element.trim() : 'Text';
@@ -122,27 +138,32 @@ if (typeof window.chatroom === 'undefined') {
       } else if (avatar && avatar.startsWith('http')) {
         avatarUrl = avatar;
       } else if (avatar && !isNaN(Number(avatar))) {
-        avatarUrl = `https://q1.qlogo.cn/g?b=qq&nk=  ${avatar}&s=100`;
+        avatarUrl = `https://q1.qlogo.cn/g?b=qq&nk=${avatar}&s=100`;
       } else {
         avatarUrl = this.assignAvatar(name);
       }
 
       const avatarHTML = hideAvatar
         ? ''
-        : `<img class="chatAvatar no-lightbox" src="${avatarUrl}" onerror="this.src='https://via.placeholder.com/100';">`;
+        : `<img class="chatAvatar no-lightbox" src="${avatarUrl}" onerror="this.src='https://via.placeholder.com/100    ';">`;
 
+      // 处理不同类型的内容
       let processedContent;
       
+      // 新增：处理 ARK 卡片类型
       if (element === 'ARK') {
         try {
+          // 如果content是字符串，尝试解析为JSON
           if (typeof content === 'string') {
             content = JSON.parse(content);
           }
+          // 等待异步操作完成
           processedContent = await this.generateARKCard(content);
         } catch (e) {
           console.error('Error parsing ARK card:', e);
           processedContent = `<div class="error">卡片解析失败: ${e.message}</div>`;
         }
+        //提前返回，差异化处理
         return `
         <div class="chatItem ${chatClass}">
           ${avatarHTML}
@@ -153,9 +174,11 @@ if (typeof window.chatroom === 'undefined') {
         </div>
       `;
       } 
+      // 处理普通文本
       else if (typeof content === 'string') {
         processedContent = this.parseContent(content.trim());
       } 
+      // 兜底：如果content既不是字符串也不是ARK，尝试转为字符串
       else {
         processedContent = typeof content === 'object' ? 
           JSON.stringify(content) : 
@@ -173,15 +196,20 @@ if (typeof window.chatroom === 'undefined') {
       `;
     },
     
+    // 重构：动态加载卡片模板
     generateARKCard: async function(cardData) {
       try {
+        // 获取卡片类型和视图
         const app = (cardData.app || '').toLowerCase();
         const view = cardData.view || 'default';
         
+        // 生成模板路径 - 使用配置的templatesUrl
         const templatePath = `${this.templatesUrl}${app}/${view}.html`;
         
+        // 获取模板
         const template = await this.getTemplate(templatePath);
         
+        // 填充模板数据
         return this.renderTemplate(template, cardData);
       } catch (e) {
         console.error('Error generating ARK card:', e);
@@ -189,12 +217,15 @@ if (typeof window.chatroom === 'undefined') {
       }
     },
     
+    // 新增：获取并缓存模板
     getTemplate: async function(templatePath) {
+      // 检查缓存
       if (this.templateCache.has(templatePath)) {
         return this.templateCache.get(templatePath);
       }
       
       try {
+        // 加载模板
         const response = await fetch(templatePath);
         if (!response.ok) {
           throw new Error(`Failed to load template from ${templatePath}`);
@@ -202,28 +233,36 @@ if (typeof window.chatroom === 'undefined') {
         
         const templateHTML = await response.text();
         
+        // 缓存模板
         this.templateCache.set(templatePath, templateHTML);
         
+        // 自动加载关联样式
         this.loadTemplateStyles(templateHTML);
         
         return templateHTML;
       } catch (error) {
         console.error(`Error loading template ${templatePath}:`, error);
+        // 失败时使用默认模板
         return this.getDefaultTemplate();
       }
     },
     
+    // 新增：加载模板中的样式
     loadTemplateStyles: function(templateHTML) {
+      // 创建临时DOM元素解析模板
       const tempDiv = document.createElement('div');
       tempDiv.innerHTML = templateHTML;
       
+      // 查找所有样式标签
       const styleTags = tempDiv.querySelectorAll('style, link[rel="stylesheet"]');
       
       styleTags.forEach(tag => {
         const key = tag.outerHTML;
         
+        // 检查样式是否已加载
         if (this.styleCache.has(key)) return;
         
+        // 注入样式
         if (tag.tagName === 'STYLE') {
           const style = document.createElement('style');
           style.innerHTML = tag.innerHTML;
@@ -235,76 +274,98 @@ if (typeof window.chatroom === 'undefined') {
           document.head.appendChild(link);
         }
         
+        // 缓存已加载样式
         this.styleCache.add(key);
       });
     },
     
-    renderTemplate: function(template, data) {
-      try {
-        const overwrite = data.overwrite || {};
-        const handlerId = overwrite.clickHandlerId || this.generateHandlerId();
+  // 重构：渲染模板 - 支持 overwrite 字段
+  renderTemplate: function(template, data) {
+    try {
+      // 检查 overwrite 配置
+      const overwrite = data.overwrite || {};
+      const handlerId = overwrite.clickHandlerId || this.generateHandlerId();
+      
+      // 存储自定义点击处理函数
+      if (overwrite.clickHandler) {
+        this.customClickHandlers.set(handlerId, 
+          new Function('e', 'params', 'element', `with(this) { ${overwrite.clickHandler} }`).bind(this)
+        );
+      }
+      
+      // 调试：打印完整数据结构
+      console.log('Template data structure:', data);
+      
+      // 将 handlerId 和其他 overwrite 数据注入到模板上下文中
+      const context = {
+        ...data,
+        __clickHandlerId: handlerId,
+        __overwrite: overwrite
+      };
+      
+      // 改进的模板变量替换
+      let rendered = template.replace(/{{\s*([^}]+?)\s*}}/g, (match, key) => {
+        key = key.trim();
         
-        if (overwrite.clickHandler) {
-          this.customClickHandlers.set(handlerId, 
-            new Function('e', 'params', 'element', `with(this) { ${overwrite.clickHandler} }`).bind(this)
-          );
+        // 处理特殊变量
+        if (key === '__clickAttrs') {
+          if (overwrite.clickHandler) {
+            return `data-click-handler="${handlerId}" data-click-params='${JSON.stringify(overwrite.clickParams || {})}'`;
+          }
+          return '';
         }
         
-        const context = {
-          ...data,
-          __clickHandlerId: handlerId,
-          __overwrite: overwrite
-        };
+        // 支持嵌套属性，如 meta.news.title
+        const value = this.getNestedValue(context, key);
         
-        let rendered = template.replace(/{{\s*([^}]+?)\s*}}/g, (match, key) => {
-          key = key.trim();
-          
-          if (key === '__clickAttrs') {
-            if (overwrite.clickHandler) {
-              return `data-click-handler="${handlerId}" data-click-params='${JSON.stringify(overwrite.clickParams || {})}'`;
-            }
-            return '';
-          }
-          
-          const value = this.getNestedValue(context, key);
-          
-          if (value === undefined) {
-            console.warn(`Template variable not found: ${key}`, context);
-          }
-          
-          return value !== undefined && value !== null ? String(value) : '';
-        });
+        // 调试：打印变量解析结果
+        if (value === undefined) {
+          console.warn(`Template variable not found: ${key}`, context);
+        }
         
-        rendered = rendered.replace(/{{[^}]+?}}/g, '');
-        
-        return rendered;
-      } catch (e) {
-        console.error('Error rendering template:', e);
-        return `<div class="error">模板渲染失败: ${e.message}</div>`;
-      }
-    },
+        // 确保返回字符串
+        return value !== undefined && value !== null ? String(value) : '';
+      });
+      
+      // 再次替换未解析的变量（双重保险）
+      rendered = rendered.replace(/{{[^}]+?}}/g, '');
+      
+      // 调试：打印渲染后的HTML
+      console.log('Rendered template:', rendered.substring(0, 200) + '...');
+      
+      return rendered;
+    } catch (e) {
+      console.error('Error rendering template:', e);
+      return `<div class="error">模板渲染失败: ${e.message}</div>`;
+    }
+  },
     
+    // 新增：生成唯一处理器ID
     generateHandlerId() {
       return `handler_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
     },
       
-    getNestedValue: function(obj, path) {
-      try {
-        return path.split('.').reduce((current, key) => {
-          if (key.includes('[')) {
-            const match = key.match(/(\w+)\[['"]?([^'"]+)['"]?\]/);
-            if (match) {
-              return current && current[match[1]] ? current[match[1]][match[2]] : undefined;
-            }
+  // 改进：获取嵌套对象的值
+  getNestedValue: function(obj, path) {
+    try {
+      // 处理数组索引和特殊字符
+      return path.split('.').reduce((current, key) => {
+        // 处理带引号的键，如 meta['news.title']
+        if (key.includes('[')) {
+          const match = key.match(/(\w+)\[['"]?([^'"]+)['"]?\]/);
+          if (match) {
+            return current && current[match[1]] ? current[match[1]][match[2]] : undefined;
           }
-          return current && current[key] !== undefined ? current[key] : undefined;
-        }, obj);
-      } catch (e) {
-        console.error(`Error getting nested value for path '${path}':`, e);
-        return undefined;
-      }
-    },
-      
+        }
+        return current && current[key] !== undefined ? current[key] : undefined;
+      }, obj);
+    } catch (e) {
+      console.error(`Error getting nested value for path '${path}':`, e);
+      return undefined;
+    }
+  },
+    
+    // 新增：默认模板
     getDefaultTemplate() {
       return `
         <div class="ark-card default-card">
@@ -353,6 +414,7 @@ if (typeof window.chatroom === 'undefined') {
     },
 
     parseContent: function (content) {
+      // 保持原有特殊语法解析逻辑不变
       const imagePattern = /\[:image::(https?:\/\/[^\s]+?)::\]/g;
       const chatPattern = /\[:chat:\(([^)]+)\)::([^\s]+?)::\]/g;
       const linkPattern = /\[:a::(https?:\/\/[^\s]+?)::\]/g;
@@ -403,12 +465,12 @@ if (typeof window.chatroom === 'undefined') {
 
     assignAvatar: function (name) {
       const avatars = [
-        'https://i.p-i.vip/30/20240920-66ed9a608c2cf.png',
-        'https://i.p-i.vip/30/20240920-66ed9b0655cba.png',
-        'https://i.p-i.vip/30/20240920-66ed9b18a56ee.png',
-        'https://i.p-i.vip/30/20240920-66ed9b2c199bf.png',
-        'https://i.p-i.vip/30/20240920-66ed9b3350ed1.png',
-        'https://i.p-i.vip/30/20240920-66ed9b5181630.png',
+        'https://i.p-i.vip/30/20240920-66ed9a608c2cf.png    ',
+        'https://i.p-i.vip/30/20240920-66ed9b0655cba.png    ',
+        'https://i.p-i.vip/30/20240920-66ed9b18a56ee.png    ',
+        'https://i.p-i.vip/30/20240920-66ed9b2c199bf.png    ',
+        'https://i.p-i.vip/30/20240920-66ed9b3350ed1.png    ',
+        'https://i.p-i.vip/30/20240920-66ed9b5181630.png    ',
       ];
 
       if (!this.userAvatarMap.has(name)) {
@@ -420,35 +482,41 @@ if (typeof window.chatroom === 'undefined') {
   };
 }
 
-// 安全的初始化
-function initChatRoomWhenReady() {
-  if (typeof window.chatroom !== 'undefined' && typeof chatroom.init === 'function' && typeof chatroom.init === 'object') {
-    try {
-      // 检查是否需要初始化
-      const config = chatroom.init;
-      const container = document.getElementById(config.chatroomName);
-      if (container && container.innerHTML.trim() === '' && !container.dataset.initialized) {
-        container.dataset.initialized = 'true';
+// 添加 PJAX 和 Turbolinks 支持
+document.addEventListener('DOMContentLoaded', function() {
+  // 仅当直接调用 chatroom.init 时才执行
+  if (typeof window.chatroomInitTrigger !== 'undefined') {
+    window.chatroomInitTrigger.forEach(function(config) {
+      if (typeof chatroom !== 'undefined' && typeof chatroom.init === 'function') {
         chatroom.init(config);
       }
-    } catch (e) {
-      console.error('Error initializing chatroom:', e);
-    }
+    });
+    window.chatroomInitTrigger = []; // 清空
   }
-}
+});
 
-// 页面加载完成后初始化
-document.addEventListener('DOMContentLoaded', initChatRoomWhenReady);
-
-// PJAX 支持
-document.addEventListener('pjax:complete', initChatRoomWhenReady);
-document.addEventListener('turbolinks:load', initChatRoomWhenReady);
+// 为 PJAX 和 Turbolinks 事件添加支持
+['pjax:complete', 'turbolinks:load'].forEach(function(event) {
+  document.addEventListener(event, function() {
+    if (typeof window.chatroomInitTrigger !== 'undefined') {
+      window.chatroomInitTrigger.forEach(function(config) {
+        const container = document.getElementById(config.chatroomName);
+        if (container) {
+          container.dataset.chatroomInitialized = 'false'; // 重置标记
+          if (typeof chatroom !== 'undefined' && typeof chatroom.init === 'function') {
+            chatroom.init(config);
+          }
+        }
+      });
+    }
+  });
+});
 
 // 兼容旧版初始化
-if (typeof chatroom.init === 'object') {
-  window.addEventListener('load', function() {
-    if (typeof window.chatroom !== 'undefined' && typeof chatroom.init === 'function' && typeof chatroom.init === 'object') {
-      initChatRoomWhenReady();
+if (typeof chatroom !== 'undefined' && typeof chatroom.init === 'object') {
+  document.addEventListener('DOMContentLoaded', function() {
+    if (typeof chatroom !== 'undefined' && typeof chatroom.init === 'function' && typeof chatroom.init === 'object') {
+      chatroom.init(chatroom.init);
     }
   });
 }
