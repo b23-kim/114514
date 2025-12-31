@@ -494,7 +494,7 @@
             chatroomName: element.id,
             MyAvatar: element.getAttribute('data-my-avatar'),
             title: element.getAttribute('data-title') || 'ChatRoom.js',
-            hideAvatar: element.getAttribute('data-hide-avatar') === 'false'
+            hideAvatar: element.getAttribute('data-hide-avatar') === 'true'
         };
     
         if (config.jsonFilePath && config.MyAvatar) {
