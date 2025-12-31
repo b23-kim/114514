@@ -1,4 +1,4 @@
-// 修改：将整个代码包装在立即执行函数中，确保chatroom对象立即可用
+// 使用立即执行函数确保代码独立作用域
 (function() {
   // 检查 chatroom 是否已定义，防止重复声明
   if (typeof window.chatroom === 'undefined') {
@@ -41,6 +41,8 @@
 
         // 标记为已初始化
         container.dataset.chatroomInitialized = 'true';
+        // 存储配置到容器上，供PJAX重新初始化使用
+        container.dataset.chatroomConfig = JSON.stringify(config);
 
         // 设置自定义点击事件委托
         this.setupCustomClickDelegation(container);
@@ -481,6 +483,20 @@
         }
         return this.userAvatarMap.get(name);
       },
+
+      // 新增：自动初始化所有聊天室
+      autoInitAll: function() {
+        // 查找所有带有data-chatroom-config属性的元素
+        document.querySelectorAll('[data-chatroom-config]').forEach(element => {
+          try {
+            const configStr = element.getAttribute('data-chatroom-config');
+            const config = JSON.parse(configStr);
+            this.init(config);
+          } catch (e) {
+            console.error('Error parsing chatroom config from data attribute:', e);
+          }
+        });
+      }
     };
   }
 
@@ -489,55 +505,45 @@
     window.open(url, '_blank', 'width=450,height=650,scrollbars=yes');
   };
 
-  // 修改：移除原有的PJAX支持代码，改为更简单的解决方案
-  // 在chatroom对象定义后，立即处理可能存在的初始化调用
-  if (window.chatroomInitTrigger && Array.isArray(window.chatroomInitTrigger)) {
-    // 如果有待处理的初始化调用，立即执行
-    window.chatroomInitTrigger.forEach(function(config) {
-      if (window.chatroom && typeof window.chatroom.init === 'function') {
-        window.chatroom.init(config);
-      }
-    });
-    // 清空队列
-    window.chatroomInitTrigger = [];
+  // 自动初始化函数 - 在DOM加载完成后执行
+  function initializeChatrooms() {
+    if (window.chatroom && typeof window.chatroom.autoInitAll === 'function') {
+      window.chatroom.autoInitAll();
+    }
   }
 
-  // 修改：简化的PJAX支持
+  // 当DOM加载完成后初始化
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeChatrooms);
+  } else {
+    // DOM已经加载完成，立即初始化
+    setTimeout(initializeChatrooms, 0);
+  }
+
+  // PJAX支持
   document.addEventListener('pjax:complete', function() {
-    // 查找所有已初始化的聊天室并重新初始化
-    document.querySelectorAll('[data-chatroom-initialized="true"]').forEach(container => {
-      container.dataset.chatroomInitialized = 'false'; // 重置标记
-      // 从全局配置缓存中获取配置重新初始化
-      if (window.chatroom && typeof window.chatroom.init === 'function') {
-        // 查找相关的配置并重新初始化
-        // 这里假设配置已经通过某种方式存储在全局作用域
-        if (window.chatroomConfigs && window.chatroomConfigs[container.id]) {
-          window.chatroom.init(window.chatroomConfigs[container.id]);
-        }
-      }
-    });
+    // 重新初始化所有聊天室
+    setTimeout(initializeChatrooms, 0);
   });
 
-  // 修改：简化的Turbolinks支持
+  // Turbolinks支持
   document.addEventListener('turbolinks:load', function() {
-    // 与pjax相同的处理逻辑
-    document.querySelectorAll('[data-chatroom-initialized="true"]').forEach(container => {
-      container.dataset.chatroomInitialized = 'false';
-      if (window.chatroom && typeof window.chatroom.init === 'function') {
-        if (window.chatroomConfigs && window.chatroomConfigs[container.id]) {
-          window.chatroom.init(window.chatroomConfigs[container.id]);
-        }
-      }
-    });
+    setTimeout(initializeChatrooms, 0);
   });
 
-  // 修改：兼容旧版初始化方式
+  // 兼容旧版初始化方式 - 通过全局变量传递配置
+  if (typeof window.chatroomInitConfig !== 'undefined') {
+    document.addEventListener('DOMContentLoaded', function() {
+      if (window.chatroom && typeof window.chatroom.init === 'function') {
+        window.chatroom.init(window.chatroomInitConfig);
+      }
+    });
+  }
+
+  // 兼容旧版初始化方式 - 直接调用chatroom.init
   if (window.chatroom && typeof window.chatroom.init === 'object') {
     document.addEventListener('DOMContentLoaded', function() {
-      // 保存配置以供PJAX使用
       if (window.chatroom && window.chatroom.init && typeof window.chatroom.init === 'object') {
-        if (!window.chatroomConfigs) window.chatroomConfigs = {};
-        window.chatroomConfigs[window.chatroom.init.chatroomName] = window.chatroom.init;
         window.chatroom.init(window.chatroom.init);
       }
     });
