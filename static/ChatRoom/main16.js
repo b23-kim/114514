@@ -1,9 +1,16 @@
-window.openChatWindow = function (url) {
-  window.open(url, '_blank', 'width=450,height=650,scrollbars=yes');
-};
+// 立即执行函数确保全局作用域
+(function() {
+  // 检查是否已存在 chatroom，避免重复定义
+  if (window.chatroom && typeof window.chatroom.init === 'function') {
+    return;
+  }
 
-// 仅当 chatroom 未定义时才初始化
-if (typeof window.chatroom === 'undefined') {
+  // 聊天窗口打开函数
+  window.openChatWindow = function (url) {
+    window.open(url, '_blank', 'width=450,height=650,scrollbars=yes');
+  };
+
+  // 创建 chatroom 对象
   window.chatroom = {
     userAvatarMap: new Map(),
     avatarIndex: 0,
@@ -31,7 +38,7 @@ if (typeof window.chatroom === 'undefined') {
 
       this.loadChatData(jsonFilePath)
         .then((chatData) => {
-          // 关键修改：使用async/await处理Promise
+          // 使用 async/await 处理 Promise
           this.generateChatContent(chatData, myAvatar, config.hideAvatar)
             .then(chatContent => {
               container.innerHTML = this.generateChatBoxHTML(chatContent, config.title || '群聊的聊天记录');
@@ -57,7 +64,7 @@ if (typeof window.chatroom === 'undefined') {
       return `<div class="chatContainer">${titleHtml}<div class="chatBox">${content}</div></div>`;
     },
 
-    // 关键修改：改为异步函数
+    // 异步函数
     generateChatContent: async function (chatData, myAvatar, hideAvatar) {
       let content = '';
       const sysProcessed = new Set();
@@ -74,7 +81,7 @@ if (typeof window.chatroom === 'undefined') {
       return content;
     },
 
-    // 关键修改：改为异步函数
+    // 异步函数
     generateChatItem: async function (chatItem, myAvatar, hideAvatar) {
       let name = chatItem.name ? chatItem.name.trim() : '未知';
       let content = chatItem.content ? chatItem.content : '无内容';
@@ -107,7 +114,7 @@ if (typeof window.chatroom === 'undefined') {
           if (typeof content === 'string') {
             content = JSON.parse(content);
           }
-          processedContent = await this.generateARKCard(content, config);
+          processedContent = await this.generateARKCard(content);
         } catch (e) {
           console.error('Error parsing ARK card:', e);
           processedContent = `<div class="error">卡片解析失败: ${e.message}</div>`;
@@ -144,20 +151,24 @@ if (typeof window.chatroom === 'undefined') {
       `;
     },
     
-    // 保持其他原有方法不变
     generateARKCard: async function(cardData) {
       // 这里是您的原有实现
       // 为了简洁这里省略，保持原有代码
       return '<div>ARK卡片内容</div>';
     },
     
-    // 其他原有方法保持不变
+    // 其他方法
     generateSystemNotification: function (chatItem) {
       // 原有代码
+      const content = chatItem.content || '';
+      return `<div class="sysNotification">${content}</div>`;
     },
     
     parseContent: function (content) {
-      // 原有代码
+      // 简单示例，根据您的实际需求修改
+      return content
+        .replace(/\[表情\]/g, '😊')
+        .replace(/\n/g, '<br>');
     },
     
     assignAvatar: function (name) {
@@ -179,25 +190,58 @@ if (typeof window.chatroom === 'undefined') {
     
     // 添加PJAX支持
     setupPjaxSupport: function() {
+      // 检查是否已添加过事件监听器
+      if (this._pjaxListenerAdded) return;
+      
       document.addEventListener('pjax:complete', () => {
         // 重新初始化所有聊天室
         document.querySelectorAll('[data-chatroom]').forEach(element => {
-          const config = JSON.parse(element.getAttribute('data-chatroom'));
-          if (typeof chatroom !== 'undefined' && typeof chatroom.init === 'function') {
-            chatroom.init(config);
+          try {
+            const config = JSON.parse(element.getAttribute('data-chatroom'));
+            if (window.chatroom && typeof window.chatroom.init === 'function') {
+              window.chatroom.init(config);
+            }
+          } catch (e) {
+            console.error('Error parsing chatroom config:', e);
           }
         });
       });
+      
+      this._pjaxListenerAdded = true;
     }
   };
   
-  // 设置PJAX支持
-  chatroom.setupPjaxSupport();
-}
-
-// 兼容旧版初始化方式
-if (typeof chatroom !== 'undefined' && typeof chatroom.init === 'object') {
+  // 初始化完成后设置PJAX支持
+  window.chatroom.setupPjaxSupport();
+  
+  // DOM加载完成后初始化所有聊天室
   document.addEventListener('DOMContentLoaded', function() {
-    chatroom.init(chatroom.init);
+    document.querySelectorAll('[data-chatroom]').forEach(element => {
+      try {
+        const config = JSON.parse(element.getAttribute('data-chatroom'));
+        if (window.chatroom && typeof window.chatroom.init === 'function') {
+          window.chatroom.init(config);
+        }
+      } catch (e) {
+        console.error('Error parsing chatroom config:', e);
+      }
+    });
   });
-}
+  
+  // 立即检查DOM中已有的聊天室（用于PJAX首次加载）
+  if (document.readyState === 'loading') {
+    // DOM仍在加载，等待
+  } else {
+    // DOM已加载，立即执行
+    document.querySelectorAll('[data-chatroom]').forEach(element => {
+      try {
+        const config = JSON.parse(element.getAttribute('data-chatroom'));
+        if (window.chatroom && typeof window.chatroom.init === 'function') {
+          window.chatroom.init(config);
+        }
+      } catch (e) {
+        console.error('Error parsing chatroom config:', e);
+      }
+    });
+  }
+})();
