@@ -1,4 +1,8 @@
-// 检查 chatroom 是否已定义，防止重复声明
+window.openChatWindow = function (url) {
+  window.open(url, '_blank', 'width=450,height=650,scrollbars=yes');
+};
+
+// 防止重复定义 chatroom
 if (typeof window.chatroom === 'undefined') {
   window.chatroom = {
     userAvatarMap: new Map(),
@@ -6,7 +10,7 @@ if (typeof window.chatroom === 'undefined') {
     templateCache: new Map(),
     styleCache: new Set(),
     customClickHandlers: new Map(), // 存储自定义点击处理器
-    templatesUrl: 'https://cdn.jsdmirror.com/gh/b23-kim/ChatRoom.js@main/ARKTemplates/    ', // 默认模板URL
+    templatesUrl: 'https://cdn.jsdmirror.com/gh/b23-kim/ChatRoom.js@main/ARKTemplates/  ', // 默认模板URL
 
     init: function (config) {
       if (!config || typeof config !== 'object') {
@@ -31,13 +35,13 @@ if (typeof window.chatroom === 'undefined') {
         return;
       }
 
-      // 检查是否已初始化
+      // 防止重复初始化
       if (container.dataset.chatroomInitialized === 'true') {
-        console.log(`Chatroom with id "${containerId}" already initialized`);
+        console.log(`Chatroom with id "${containerId}" already initialized, skipping.`);
         return;
       }
 
-      // 标记为已初始化
+      // 标记为正在初始化
       container.dataset.chatroomInitialized = 'true';
 
       // 设置自定义点击事件委托
@@ -54,14 +58,16 @@ if (typeof window.chatroom === 'undefined') {
         })
         .catch((err) => {
           console.error('Error loading chat data:', err);
-          // 移除标记，允许重试
-          container.dataset.chatroomInitialized = 'false';
+          // 移除初始化标记，允许重试
+          if (container) {
+            container.dataset.chatroomInitialized = 'false';
+          }
         });
     },
 
     // 新增：设置自定义点击事件委托
     setupCustomClickDelegation: function(container) {
-      // 移除重复事件监听
+      // 移除已存在的事件监听器
       const existingListener = container.__chatroomClickListener;
       if (existingListener) {
         container.removeEventListener('click', existingListener, true);
@@ -138,14 +144,14 @@ if (typeof window.chatroom === 'undefined') {
       } else if (avatar && avatar.startsWith('http')) {
         avatarUrl = avatar;
       } else if (avatar && !isNaN(Number(avatar))) {
-        avatarUrl = `https://q1.qlogo.cn/g?b=qq&nk=${avatar}&s=100`;
+        avatarUrl = `https://q1.qlogo.cn/g?b=qq&nk=  ${avatar}&s=100`;
       } else {
         avatarUrl = this.assignAvatar(name);
       }
 
       const avatarHTML = hideAvatar
         ? ''
-        : `<img class="chatAvatar no-lightbox" src="${avatarUrl}" onerror="this.src='https://via.placeholder.com/100    ';">`;
+        : `<img class="chatAvatar no-lightbox" src="${avatarUrl}" onerror="this.src='https://via.placeholder.com/100  ';">`;
 
       // 处理不同类型的内容
       let processedContent;
@@ -339,12 +345,12 @@ if (typeof window.chatroom === 'undefined') {
       return `<div class="error">模板渲染失败: ${e.message}</div>`;
     }
   },
-    
+  
     // 新增：生成唯一处理器ID
     generateHandlerId() {
       return `handler_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
     },
-      
+    
   // 改进：获取嵌套对象的值
   getNestedValue: function(obj, path) {
     try {
@@ -368,10 +374,13 @@ if (typeof window.chatroom === 'undefined') {
     // 新增：默认模板
     getDefaultTemplate() {
       return `
-        <div class="ark-card default-card">
+        <div class="ark-card default-card" {{__clickAttrs}} onclick="window.open('{{meta.jumpUrl}}', '_blank')">
           <div class="card-content">
-            <h3>卡片加载异常</h3>
-            <p>ARK内容显示失败</p>
+            <h3>{{meta.title}}</h3>
+            <p>{{meta.desc}}</p>
+          </div>
+          <div class="card-footer">
+            <span>{{meta.source || '未知来源'}}</span>
           </div>
         </div>
         <style>
@@ -383,6 +392,7 @@ if (typeof window.chatroom === 'undefined') {
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
             margin: 12px 0;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            cursor: pointer;
           }
           .card-content {
             padding: 16px;
@@ -428,7 +438,7 @@ if (typeof window.chatroom === 'undefined') {
       content = content.replace(chatPattern, (match, title, jsonFilePath) => {
         const encodedTitle = encodeURIComponent(title);
         const encodedJsonFilePath = encodeURIComponent(jsonFilePath);
-        const chatLink = `https://blog.awaae001.top/Chatroom/?jsonFilePath=${encodedJsonFilePath}&title=${encodedTitle}`;
+        const chatLink = `https://blog.awaae001.top/Chatroom/?jsonFilePath=  ${encodedJsonFilePath}&title=${encodedTitle}`;
         return `
           <div class="chatQuoteCard">
             <div class="chatQuoteTetle">
@@ -465,12 +475,12 @@ if (typeof window.chatroom === 'undefined') {
 
     assignAvatar: function (name) {
       const avatars = [
-        'https://i.p-i.vip/30/20240920-66ed9a608c2cf.png    ',
-        'https://i.p-i.vip/30/20240920-66ed9b0655cba.png    ',
-        'https://i.p-i.vip/30/20240920-66ed9b18a56ee.png    ',
-        'https://i.p-i.vip/30/20240920-66ed9b2c199bf.png    ',
-        'https://i.p-i.vip/30/20240920-66ed9b3350ed1.png    ',
-        'https://i.p-i.vip/30/20240920-66ed9b5181630.png    ',
+        'https://i.p-i.vip/30/20240920-66ed9a608c2cf.png  ',
+        'https://i.p-i.vip/30/20240920-66ed9b0655cba.png  ',
+        'https://i.p-i.vip/30/20240920-66ed9b18a56ee.png  ',
+        'https://i.p-i.vip/30/20240920-66ed9b2c199bf.png  ',
+        'https://i.p-i.vip/30/20240920-66ed9b3350ed1.png  ',
+        'https://i.p-i.vip/30/20240920-66ed9b5181630.png  ',
       ];
 
       if (!this.userAvatarMap.has(name)) {
@@ -482,33 +492,49 @@ if (typeof window.chatroom === 'undefined') {
   };
 }
 
-// 添加 PJAX 和 Turbolinks 支持
-document.addEventListener('DOMContentLoaded', function() {
-  // 仅当直接调用 chatroom.init 时才执行
-  if (typeof window.chatroomInitTrigger !== 'undefined') {
-    window.chatroomInitTrigger.forEach(function(config) {
-      if (typeof chatroom !== 'undefined' && typeof chatroom.init === 'function') {
+// 安全初始化函数
+function safeInitChatRoom(config) {
+  // 保存需要初始化的配置
+  window.chatroomPendingConfigs = window.chatroomPendingConfigs || [];
+  window.chatroomPendingConfigs.push(config);
+  
+  // 尝试立即初始化
+  tryInitPendingConfigs();
+}
+
+// 尝试初始化所有挂起的配置
+function tryInitPendingConfigs() {
+  if (window.chatroomPendingConfigs && typeof window.chatroom !== 'undefined' && typeof chatroom.init === 'function') {
+    window.chatroomPendingConfigs.forEach(config => {
+      const container = document.getElementById(config.chatroomName);
+      if (container && !container.dataset.chatroomInitialized) {
         chatroom.init(config);
       }
     });
-    window.chatroomInitTrigger = []; // 清空
+    // 清空已处理的配置
+    window.chatroomPendingConfigs = [];
   }
-});
+}
 
-// 为 PJAX 和 Turbolinks 事件添加支持
-['pjax:complete', 'turbolinks:load'].forEach(function(event) {
-  document.addEventListener(event, function() {
-    if (typeof window.chatroomInitTrigger !== 'undefined') {
-      window.chatroomInitTrigger.forEach(function(config) {
-        const container = document.getElementById(config.chatroomName);
-        if (container) {
-          container.dataset.chatroomInitialized = 'false'; // 重置标记
-          if (typeof chatroom !== 'undefined' && typeof chatroom.init === 'function') {
-            chatroom.init(config);
-          }
-        }
-      });
+// PJAX 和动态内容加载支持
+document.addEventListener('DOMContentLoaded', tryInitPendingConfigs);
+document.addEventListener('pjax:complete', tryInitPendingConfigs);
+document.addEventListener('turbolinks:load', tryInitPendingConfigs);
+
+// 为 window 对象添加安全的初始化方法
+window.safeInitChatRoom = safeInitChatRoom;
+
+// 为 PJAX 环境添加清理功能
+document.addEventListener('pjax:beforeReplace', function() {
+  // 在内容替换前，移除所有聊天室的事件监听器
+  document.querySelectorAll('[data-chatroom-initialized="true"]').forEach(container => {
+    const clickListener = container.__chatroomClickListener;
+    if (clickListener) {
+      container.removeEventListener('click', clickListener, true);
+      delete container.__chatroomClickListener;
     }
+    // 重置初始化标记
+    container.dataset.chatroomInitialized = 'false';
   });
 });
 
