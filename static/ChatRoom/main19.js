@@ -486,16 +486,21 @@
 
       // 新增：自动初始化所有聊天室
       autoInitAll: function() {
-        // 查找所有带有data-chatroom-config属性的元素
-        document.querySelectorAll('[data-chatroom-config]').forEach(element => {
-          try {
-            const configStr = element.getAttribute('data-chatroom-config');
-            const config = JSON.parse(configStr);
-            this.init(config);
-          } catch (e) {
-            console.error('Error parsing chatroom config from data attribute:', e);
-          }
-        });
+        // 查找所有聊天室容器
+        document.querySelectorAll('[data-json-file]').forEach(element => {
+        const config = {
+            jsonFilePath: element.getAttribute('data-json-file'),
+            templatesUrl: element.getAttribute('data-templates-url') || this.templatesUrl,
+            chatroomName: element.id,
+            MyAvatar: element.getAttribute('data-my-avatar'),
+            title: element.getAttribute('data-title') || 'ChatRoom.js',
+            hideAvatar: element.getAttribute('data-hide-avatar') === 'false'
+        };
+    
+        if (config.jsonFilePath && config.MyAvatar) {
+        this.init(config);
+      }
+  });
       }
     };
   }
