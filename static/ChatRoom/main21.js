@@ -337,7 +337,7 @@
               // 创建局部上下文，包含当前项和索引
               const itemContext = {
                 ...context,
-                this: item,
+                ...item, // 关键：将item的属性直接合并到上下文
                 '@index': index,
                 '@first': index === 0,
                 '@last': index === array.length - 1
@@ -377,6 +377,11 @@
             return '';
           }
           
+          // 特殊处理 "this" 关键字
+          if (key === 'this') {
+            return JSON.stringify(context);
+          }
+          
           // 支持嵌套属性，如 meta.news.title
           const value = this.getNestedValue(context, key);
           
@@ -402,6 +407,12 @@
                 return current && current[match[1]] ? current[match[1]][match[2]] : undefined;
               }
             }
+            
+            // 处理 "this" 关键字
+            if (key === 'this') {
+              return current;
+            }
+            
             return current && current[key] !== undefined ? current[key] : undefined;
           }, obj);
         } catch (e) {
