@@ -284,142 +284,162 @@
       },
       
       // 重构：渲染模板 - 支持 overwrite 字段和数组循环
-      renderTemplate: function(template, data) {
-        try {
-          // 检查 overwrite 配置
-          const overwrite = data.overwrite || {};
-          const handlerId = overwrite.clickHandlerId || this.generateHandlerId();
-          
-          // 存储自定义点击处理函数
-          if (overwrite.clickHandler) {
-            this.customClickHandlers.set(handlerId, 
-              new Function('e', 'params', 'element', `with(this) { ${overwrite.clickHandler} }`).bind(this)
-            );
-          }
-          
-          // 将 handlerId 和其他 overwrite 数据注入到模板上下文中
-          const context = {
-            ...data,
-            __clickHandlerId: handlerId,
-            __overwrite: overwrite
-          };
-          
-          // 递归处理模板，先处理循环，再处理变量
-          let rendered = this.processTemplateLoops(template, context);
-          rendered = this.processTemplateVariables(rendered, context);
-          
-          return rendered;
-        } catch (e) {
-          console.error('Error rendering template:', e);
-          return `<div class="error">模板渲染失败: ${e.message}</div>`;
-        }
-      },
+// 重构：渲染模板 - 支持 overwrite 字段和数组循环
+renderTemplate: function(template, data) {
+  try {
+    // 检查 overwrite 配置
+    const overwrite = data.overwrite || {};
+    const handlerId = overwrite.clickHandlerId || this.generateHandlerId();
+    
+    // 存储自定义点击处理函数
+    if (overwrite.clickHandler) {
+      this.customClickHandlers.set(handlerId, 
+        new Function('e', 'params', 'element', `with(this) { ${overwrite.clickHandler} }`).bind(this)
+      );
+    }
+    
+    // 创建一个增强的上下文对象
+    const enhancedContext = {
+      ...data,
+      __clickHandlerId: handlerId,
+      __overwrite: overwrite
+    };
+    
+    // 先处理循环，再处理变量
+    let rendered = this.processTemplateLoops(template, enhancedContext);
+    rendered = this.processTemplateVariables(rendered, enhancedContext);
+    
+    return rendered;
+  } catch (e) {
+    console.error('Error rendering template:', e);
+    return `<div class="error">模板渲染失败: ${e.message}</div>`;
+  }
+},
+
+// 重构：处理循环语法
+processTemplateLoops: function(template, context) {
+  let result = template;
+  const eachRegex = /{{\s*#each\s+([^}]+)\s*}}([\s\S]*?){{\s*\/each\s*}}/g;
+  
+  let match;
+  while ((match = eachRegex.exec(result)) !== null) {
+    const [fullMatch, arrayPath, loopTemplate] = match;
+    
+    // 获取数组
+    const array = this.getNestedValue(context, arrayPath);
+    
+    if (Array.isArray(array)) {
+      let loopContent = '';
       
-      // 处理循环语法（如{{#each array}}...{{/each}}）
-      processTemplateLoops: function(template, context) {
-        // 处理 #each 语法
-        const eachRegex = /{{\s*#each\s+([^}]+)\s*}}([\s\S]*?){{\s*\/each\s*}}/g;
-        let match;
-        let result = template;
+      array.forEach((item, index) => {
+        // 为每个项目创建一个局部上下文
+        const localContext = {
+          ...context, // 包含外部上下文
+          ...item,    // 当前项目的属性
+          this: item, // 可以通过 'this' 访问当前项目
+          '@index': index,
+          '@first': index === 0,
+          '@last': index === array.length - 1
+        };
         
-        while ((match = eachRegex.exec(result)) !== null) {
-          const fullMatch = match[0];
-          const arrayPath = match[1].trim();
-          const loopTemplate = match[2];
-          
-          // 获取数组
-          const array = this.getNestedValue(context, arrayPath);
-          
-          if (Array.isArray(array)) {
-            let loopContent = '';
-            
-            array.forEach((item, index) => {
-              // 创建局部上下文，包含当前项和索引
-              const itemContext = {
-                ...context,
-                ...item, // 关键：将item的属性直接合并到上下文
-                '@index': index,
-                '@first': index === 0,
-                '@last': index === array.length - 1
-              };
-              
-              // 在循环内部处理变量
-              let itemContent = this.processTemplateVariables(loopTemplate, itemContext);
-              loopContent += itemContent;
-            });
-            
-            // 替换循环部分
-            result = result.replace(fullMatch, loopContent);
-          } else {
-            // 如果不是数组，移除循环部分
-            result = result.replace(fullMatch, '');
-          }
-          
-          // 重置正则表达式索引，以便继续匹配
-          eachRegex.lastIndex = 0;
-        }
-        
-        return result;
-      },
+        // 处理循环模板中的变量
+        let itemContent = this.replaceVariablesInTemplate(loopTemplate, localContext);
+        loopContent += itemContent;
+      });
       
-      // 处理变量替换（如{{variable}}）
-      processTemplateVariables: function(template, context) {
-        return template.replace(/{{\s*([^}]+?)\s*}}/g, (match, key) => {
-          key = key.trim();
-          
-          // 处理特殊变量
-          if (key === '__clickAttrs') {
-            const overwrite = context.__overwrite || {};
-            if (overwrite.clickHandler) {
-              const handlerId = overwrite.clickHandlerId || this.generateHandlerId();
-              return `data-click-handler="${handlerId}" data-click-params='${JSON.stringify(overwrite.clickParams || {})}'`;
-            }
-            return '';
-          }
-          
-          // 特殊处理 "this" 关键字
-          if (key === 'this') {
-            return JSON.stringify(context);
-          }
-          
-          // 支持嵌套属性，如 meta.news.title
-          const value = this.getNestedValue(context, key);
-          
-          // 确保返回字符串
-          return value !== undefined && value !== null ? String(value) : '';
-        });
-      },
+      // 替换循环部分
+      result = result.replace(fullMatch, loopContent);
+      // 重置正则表达式以便继续搜索
+      eachRegex.lastIndex = 0;
+    } else {
+      result = result.replace(fullMatch, '');
+    }
+  }
+  
+  return result;
+},
+
+// 新增：在模板中替换变量
+replaceVariablesInTemplate: function(template, context) {
+  return template.replace(/{{\s*([^}]+?)\s*}}/g, (match, key) => {
+    key = key.trim();
+    
+    // 处理特殊变量
+    if (key === '__clickAttrs') {
+      const overwrite = context.__overwrite || {};
+      if (overwrite.clickHandler) {
+        const handlerId = context.__clickHandlerId;
+        return `data-click-handler="${handlerId}" data-click-params='${JSON.stringify(overwrite.clickParams || {})}'`;
+      }
+      return '';
+    }
+    
+    // 处理 this 关键字
+    if (key === 'this') {
+      return context.this ? JSON.stringify(context.this) : '';
+    }
+    
+    // 获取值
+    const value = this.getNestedValue(context, key);
+    return value !== undefined && value !== null ? String(value) : '';
+  });
+},
+
+// 重构：处理模板变量（用于非循环部分）
+processTemplateVariables: function(template, context) {
+  return this.replaceVariablesInTemplate(template, context);
+},
+
+// 重构：获取嵌套对象的值
+getNestedValue: function(obj, path) {
+  if (!path || !obj) return undefined;
+  
+  // 处理特殊变量
+  if (['@index', '@first', '@last', '__clickHandlerId', '__overwrite'].includes(path)) {
+    return obj[path];
+  }
+  
+  // 分割路径
+  const parts = path.split('.');
+  let current = obj;
+  
+  for (const part of parts) {
+    if (current == null || typeof current !== 'object') {
+      return undefined;
+    }
+    
+    // 检查当前部分是否是数组索引
+    const arrayIndexMatch = part.match(/^(\w+)\[(\d+)\]$/);
+    if (arrayIndexMatch) {
+      const arrayName = arrayIndexMatch[1];
+      const index = parseInt(arrayIndexMatch[2], 10);
+      
+      if (Array.isArray(current[arrayName]) && current[arrayName][index] !== undefined) {
+        current = current[arrayName][index];
+      } else {
+        return undefined;
+      }
+    } else {
+      // 普通属性访问
+      if (current.hasOwnProperty(part)) {
+        current = current[part];
+      } else {
+        return undefined;
+      }
+    }
+  }
+  
+  return current;
+},
+      
+
+      
       
       // 新增：生成唯一处理器ID
       generateHandlerId() {
         return `handler_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
       },
-        
-      // 改进：获取嵌套对象的值
-      getNestedValue: function(obj, path) {
-        try {
-          // 处理数组索引和特殊字符
-          return path.split('.').reduce((current, key) => {
-            // 处理带引号的键，如 meta['news.title']
-            if (key.includes('[')) {
-              const match = key.match(/(\w+)\[['"]?([^'"]+)['"]?\]/);
-              if (match) {
-                return current && current[match[1]] ? current[match[1]][match[2]] : undefined;
-              }
-            }
-            
-            // 处理 "this" 关键字
-            if (key === 'this') {
-              return current;
-            }
-            
-            return current && current[key] !== undefined ? current[key] : undefined;
-          }, obj);
-        } catch (e) {
-          console.error(`Error getting nested value for path '${path}':`, e);
-          return undefined;
-        }
-      },
+
       
       // 新增：默认模板
       getDefaultTemplate() {
