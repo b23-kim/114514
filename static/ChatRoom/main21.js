@@ -283,7 +283,7 @@
         });
       },
       
-      // 重构：渲染模板 - 支持 overwrite 字段
+      // 重构：渲染模板 - 支持 overwrite 字段和数组循环
       renderTemplate: function(template, data) {
         try {
           // 检查 overwrite 配置
@@ -297,9 +297,6 @@
             );
           }
           
-          // 调试：打印完整数据结构
-          console.log('Template data structure:', data);
-          
           // 将 handlerId 和其他 overwrite 数据注入到模板上下文中
           const context = {
             ...data,
@@ -307,41 +304,85 @@
             __overwrite: overwrite
           };
           
-          // 改进的模板变量替换
-          let rendered = template.replace(/{{\s*([^}]+?)\s*}}/g, (match, key) => {
-            key = key.trim();
-            
-            // 处理特殊变量
-            if (key === '__clickAttrs') {
-              if (overwrite.clickHandler) {
-                return `data-click-handler="${handlerId}" data-click-params='${JSON.stringify(overwrite.clickParams || {})}'`;
-              }
-              return '';
-            }
-            
-            // 支持嵌套属性，如 meta.news.title
-            const value = this.getNestedValue(context, key);
-            
-            // 调试：打印变量解析结果
-            if (value === undefined) {
-              console.warn(`Template variable not found: ${key}`, context);
-            }
-            
-            // 确保返回字符串
-            return value !== undefined && value !== null ? String(value) : '';
-          });
-          
-          // 再次替换未解析的变量（双重保险）
-          rendered = rendered.replace(/{{[^}]+?}}/g, '');
-          
-          // 调试：打印渲染后的HTML
-          console.log('Rendered template:', rendered.substring(0, 200) + '...');
+          // 递归处理模板，先处理循环，再处理变量
+          let rendered = this.processTemplateLoops(template, context);
+          rendered = this.processTemplateVariables(rendered, context);
           
           return rendered;
         } catch (e) {
           console.error('Error rendering template:', e);
           return `<div class="error">模板渲染失败: ${e.message}</div>`;
         }
+      },
+      
+      // 处理循环语法（如{{#each array}}...{{/each}}）
+      processTemplateLoops: function(template, context) {
+        // 处理 #each 语法
+        const eachRegex = /{{\s*#each\s+([^}]+)\s*}}([\s\S]*?){{\s*\/each\s*}}/g;
+        let match;
+        let result = template;
+        
+        while ((match = eachRegex.exec(result)) !== null) {
+          const fullMatch = match[0];
+          const arrayPath = match[1].trim();
+          const loopTemplate = match[2];
+          
+          // 获取数组
+          const array = this.getNestedValue(context, arrayPath);
+          
+          if (Array.isArray(array)) {
+            let loopContent = '';
+            
+            array.forEach((item, index) => {
+              // 创建局部上下文，包含当前项和索引
+              const itemContext = {
+                ...context,
+                this: item,
+                '@index': index,
+                '@first': index === 0,
+                '@last': index === array.length - 1
+              };
+              
+              // 在循环内部处理变量
+              let itemContent = this.processTemplateVariables(loopTemplate, itemContext);
+              loopContent += itemContent;
+            });
+            
+            // 替换循环部分
+            result = result.replace(fullMatch, loopContent);
+          } else {
+            // 如果不是数组，移除循环部分
+            result = result.replace(fullMatch, '');
+          }
+          
+          // 重置正则表达式索引，以便继续匹配
+          eachRegex.lastIndex = 0;
+        }
+        
+        return result;
+      },
+      
+      // 处理变量替换（如{{variable}}）
+      processTemplateVariables: function(template, context) {
+        return template.replace(/{{\s*([^}]+?)\s*}}/g, (match, key) => {
+          key = key.trim();
+          
+          // 处理特殊变量
+          if (key === '__clickAttrs') {
+            const overwrite = context.__overwrite || {};
+            if (overwrite.clickHandler) {
+              const handlerId = overwrite.clickHandlerId || this.generateHandlerId();
+              return `data-click-handler="${handlerId}" data-click-params='${JSON.stringify(overwrite.clickParams || {})}'`;
+            }
+            return '';
+          }
+          
+          // 支持嵌套属性，如 meta.news.title
+          const value = this.getNestedValue(context, key);
+          
+          // 确保返回字符串
+          return value !== undefined && value !== null ? String(value) : '';
+        });
       },
       
       // 新增：生成唯一处理器ID
@@ -488,19 +529,19 @@
       autoInitAll: function() {
         // 查找所有聊天室容器
         document.querySelectorAll('[data-json-file]').forEach(element => {
-        const config = {
+          const config = {
             jsonFilePath: element.getAttribute('data-json-file'),
             templatesUrl: element.getAttribute('data-templates-url') || this.templatesUrl,
             chatroomName: element.id,
             MyAvatar: element.getAttribute('data-my-avatar'),
             title: element.getAttribute('data-title') || 'ChatRoom.js',
             hideAvatar: element.getAttribute('data-hide-avatar') === 'true'
-        };
-    
-        if (config.jsonFilePath && config.MyAvatar) {
-        this.init(config);
-      }
-  });
+          };
+      
+          if (config.jsonFilePath && config.MyAvatar) {
+            this.init(config);
+          }
+        });
       }
     };
   }
